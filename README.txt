@@ -1,5 +1,5 @@
 #############################################################
-Copyright 2015 Sunera, LLC.
+Copyright 2015 Websec, SC.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -14,8 +14,8 @@ GNU General Public License for more details.
 You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-Author: Chris Sullo / csullo [at] sunera . com
-Author: Paulino Calderon / calderon [at] websec . mx
+Author (1.0): Chris Sullo / csullo [at] sunera . com
+Author (1.1): Paulino Calderon / calderon [at] websec . mx
 
 #############################################################
 About
