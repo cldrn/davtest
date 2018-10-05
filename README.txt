@@ -16,6 +16,7 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 Author (1.0): Chris Sullo / csullo [at] sunera . com
 Author (1.1): Paulino Calderon / calderon [at] websec . mx
+Author (1.2): RewardOne
 
 #############################################################
 About
@@ -24,6 +25,7 @@ This program attempts to exploit WebDAV enabled servers by:
 - attempting to create a new directory (MKCOL)
 - attempting to put test files of various programming langauges (PUT)
 - optionally attempt to put files with .txt extension, then move to executable (MOVE)
+- optionally attempt to put files with .txt extension, then copy to executable (COPY)
 - check if files executed or were uploaded properly
 - optionally upload a backdoor/shell file for languages which execute
 
@@ -47,6 +49,7 @@ davtest.pl -url url [options]
                 is set to a random string.
  -debug+        HTTP::DAV debug level 1-3. Levels 2 and 3 log request/responses to /tmp/perldav_debug.txt.
  -move          PUT files as .txt and then try to MOVE them to the executable file extension
+ -copy          PUT files as .txt and then try to COPY them to the executable file extension
  -nocreate      Don't create a directory, work at the -url level.
  -quiet         Only print out summary and serious (usually fatal) errors.
  -random name+  Use this string instead of a random string for filenames.
@@ -107,6 +110,7 @@ TODO:
 	- NTLM authentication
 	- Backdoors for more languages 
 	- Validate jhtml test syntax
+	- Add auth for COPY/MOVE uploads/backdoors
 
 #############################################################
 CHANGELOG
