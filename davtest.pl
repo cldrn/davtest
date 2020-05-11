@@ -591,7 +591,7 @@ sub usage {
     print "			auto - for any succeeded test\n";
     print "			ext - extension matching file name(s) in backdoors/ dir\n";
     print " -uploadfile+	upload this file (requires -uploadloc)\n";
-    print " -uploadloc+	upload file to this location/name (requires -uploadfile)\n";
+    print " -uploadloc+	upload file to this relative location/name (requires -uploadfile)\n";
     print " -url+		url of DAV location\n";
     print "\n";
     print "Example: $0 -url http://localhost/davdir\n";
