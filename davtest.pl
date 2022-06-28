@@ -119,7 +119,7 @@ if ($OPTIONS{'createdir'}) {
         $RESULTS{'createddir'} = 1;
         }
     else {
-        print STDERR "MKCOL\t\tFAIL\n";
+        print "MKCOL\t\tFAIL\n";
         }
 
     # close old conn
