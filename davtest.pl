@@ -46,6 +46,8 @@ use strict;
 use HTTP::DAV;
 use HTTP::Request;
 use Getopt::Long;
+use Net::SSL;
+use Crypt::SSLeay;
 
 # cli options
 use vars qw/%OPTIONS %RESULTS $dav/;
@@ -62,6 +64,7 @@ $RESULTS{'createddir'}  = 0;
 print "********************************************************\n" unless $OPTIONS{'quiet'};
 print " Testing DAV connection\n"                                  unless $OPTIONS{'quiet'};
 $dav = HTTP::DAV->new();
+$dav->get_user_agent->ssl_opts(verify_hostname => 0);
 
 if ($OPTIONS{'debug'} ne '') {
     $dav->DebugLevel($OPTIONS{'debug'});
@@ -116,7 +119,7 @@ if ($OPTIONS{'createdir'}) {
         $RESULTS{'createddir'} = 1;
         }
     else {
-        print STDERR "MKCOL\t\tFAIL\n";
+        print "MKCOL\t\tFAIL\n";
         }
 
     # close old conn
